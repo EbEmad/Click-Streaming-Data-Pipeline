@@ -1,4 +1,4 @@
-# Click-Streaming-Data-Pipeline
+
 # Click Streaming Data Pipeline
 ## Real-time Event Processing Platform
 
@@ -34,7 +34,8 @@ This project implements an end-to-end streaming data pipeline that:
 [Events]    [Validation] [Topics]   [Enrichment]   [Storage]
 ```
 
-```mermaid
+
+```
 flowchart LR
 
 A[Event Generator] --> B[REST API Server]
@@ -46,4 +47,4 @@ C --> D[Spark Streaming Job]
 D --> E[Data Enrichment & Transformation]
 
 E --> F[MinIO Storage\n(S3 Data Lake)]
-
+```
