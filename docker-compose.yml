@@ -1,232 +1,117 @@
 services:
-  # Kafka Brokers :: Handles message storage and distribution.
-  kafka0:
-    # Configuration for Kafka Broker 0 
-    image: confluentinc/cp-kafka:7.6.1
-    hostname: kafka0
-    container_name: kafka0
-    ports:
-      - 9092:9092  # Default Kafka client port (producers/consumers connect here).
-      - 9997:9997  # JMX port for monitoring Kafka metrics.
+  postgres:
+    image: postgres:15-alpine
     environment:
-      KAFKA_SOCKET_SEND_BUFFER_BYTES: 1024000 # How much memory is allocated for sending and receiving data over TCP connections.
-      KAFKA_SOCKET_RECEIVE_BUFFER_BYTES: 1024000  # Larger values → better throughput for high-volume messaging.
-      KAFKA_LOG_FLUSH_INTERVAL_MESSAGES: 10000 # flush every 10,000 messages.
-      KAFKA_LOG_FLUSH_INTERVAL_MS: 1000 # flush every 1 second.
-      CLUSTER_ID: fYJ1ooafQ6uBk6s_N3sYhA # Unique identifier for the Kafka cluster
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT # Maps listener names to protocols (all plaintext here, no SSL).
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka0:29092,PLAINTEXT_HOST://localhost:9092  # How Kafka exposes itself to clients.
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT # Broker-to-broker communication.
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1 # Only one copy of Kafka metadata (simple, single broker)
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0 # Consumers rebalance immediately.
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1  # Kafka transactions can work safely with one replica.
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1 
-      KAFKA_PROCESS_ROLES: 'broker,controller' # Kafka is running in KRaft mode
-      KAFKA_NODE_ID: 1 # unique ID for this broker
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka0:29093' # only one controller (node 1) in this simple setup.
-      KAFKA_LISTENERS: 'PLAINTEXT://kafka0:29092,CONTROLLER://kafka0:29093,PLAINTEXT_HOST://0.0.0.0:9092'
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs' # : Where Kafka stores logs.
-      KAFKA_JMX_PORT: 9997
-      KAFKA_JMX_OPTS: -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=kafka0 -Dcom.sun.management.jmxremote.rmi.port=9997
-    networks:
-      - acme
-
-  # Schema Registry
-  schema-registry0:
-    # Configuration for Schema Registry
-    image: confluentinc/cp-schema-registry:7.6.1
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     ports:
-      - 8085:8085
-    hostname: schema-registry0
-    container_name: schema-registry0
-    depends_on:
-      - kafka0
-    environment:
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka0:29092
-      SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: PLAINTEXT
-      SCHEMA_REGISTRY_HOST_NAME: schema-registry0
-      SCHEMA_REGISTRY_LISTENERS: http://schema-registry0:8085
+      - "5432:5432"
 
-      SCHEMA_REGISTRY_SCHEMA_REGISTRY_INTER_INSTANCE_PROTOCOL: "http"
-      SCHEMA_REGISTRY_LOG4J_ROOT_LOGLEVEL: INFO
-      SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas
-    networks:
-      - acme
-
-  # Kafka Connect
-  kafka-connect-builder:
-    # Configuration for Kafka Connect Builder
-    container_name: kafka-connect-builder
-    build:
-      context: .
-      dockerfile: ./docker/kafka-connect/Dockerfile
-    image: acme-kafka-connect
-
-  kafka-connect0:
-    # Configuration for Kafka Connect 0
-    image: acme-kafka-connect
-    ports:
-      - 8083:8083
-    hostname: kafka-connect0
-    container_name: kafka-connect0
-    depends_on:
-      - kafka-connect-builder
-      - kafka0
-      - schema-registry0
-    environment:
-      CONNECT_BOOTSTRAP_SERVERS: "kafka0:29092" 
-      CONNECT_GROUP_ID: compose-connect-group
-      CONNECT_CONFIG_STORAGE_TOPIC: _connect_configs
-      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_OFFSET_STORAGE_TOPIC: _connect_offset
-      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_STATUS_STORAGE_TOPIC: _connect_status
-      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
-      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry0:8085
-      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.storage.StringConverter
-      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry0:8085
-      CONNECT_INTERNAL_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
-      CONNECT_INTERNAL_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
-      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect0
-      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components,/usr/share/filestream-connectors,/tmp/kfk"
     volumes:
-      - /tmp/kfk:/tmp/kfk:ro
-      - /tmp/kfk/test.txt:/tmp/kfk/test.txt
-    networks:
-      - acme
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
 
-  # REST Proxy
-  rest-proxy:
-    # Configuration for Kafka REST Proxy
-    image: confluentinc/cp-kafka-rest:7.6.1
-    depends_on:
-      - kafka0
-    ports:
-      - 8082:8082
-    hostname: rest-proxy
-    container_name: rest-proxy
-    environment:
-      KAFKA_REST_HOST_NAME: rest-proxy
-      KAFKA_REST_BOOTSTRAP_SERVERS: 'kafka0:29092'
-      KAFKA_REST_LISTENERS: "http://0.0.0.0:8082"
-    networks:
-      - acme
-
-
-  # Kafka UI
-  kafka-ui:
-    # Configuration for Kafka UI
-    container_name: kafka-ui
-    image: provectuslabs/kafka-ui:latest
-    ports:
-      - 8080:8080
-    depends_on:
-      - kafka0
-      - schema-registry0
-      - kafka-connect0
-    environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka0:29092
-      KAFKA_CLUSTERS_0_METRICS_PORT: 9997
-      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry0:8085
-      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: first
-      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect0:8083
-      KAFKA_CLUSTERS_0_KSQLDBSERVER: http://ksqldb-server:8088
-    networks:
-      - acme
-
-  # Minio
-  minio:
-    # Configuration for Minio
-    image: minio/minio
-    ports:
-      - '9000:9000'
-      - '9001:9001'
-    hostname: minio-storage
-    container_name: minio-storage
-    volumes:
-      - 'minio_data:/data'
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-      MINIO_DEFAULT_BUCKETS: acme.eu-west-1.stg.data.lake
     command:
-      # sh -c 'mc alias set minio http://minio:9000 minioadmin minioadmin &&
-      server --console-address ":9001" /data
+      - "postgres"
+      # WAL & Replication
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_wal_senders=10"
+      - "-c"
+      - "max_replication_slots=10"
+
+      # Connection Settings
+      - "-c"
+      - "max_connections=200" # Increased from 100
+      - "-c"
+      - "superuser_reserved_connections=3"
+
+      # Memory Settings (Optimized for 2GB allocation)
+      - "-c"
+      - "shared_buffers=512MB" # Increased from 256MB (25% of RAM)
+      - "-c"
+      - "effective_cache_size=1536MB" # Increased from 1GB (75% of RAM)
+      - "-c"
+      - "work_mem=8MB" # Decreased from 16MB (avoid OOM)
+      - "-c"
+      - "maintenance_work_mem=128MB" # For VACUUM, CREATE INDEX
+      - "-c"
+      - "temp_buffers=16MB" # For temporary tables
+
+      # Query Planning
+      - "-c"
+      - "random_page_cost=1.1" # SSD optimization (default: 4.0)
+      - "-c"
+      - "effective_io_concurrency=200" # SSD optimization (default: 1)
+      - "-c"
+      - "default_statistics_target=100" # Better query plans
+
+      # Write Performance
+      - "-c"
+      - "wal_buffers=16MB" # WAL buffer size
+      - "-c"
+      - "checkpoint_completion_target=0.9" # Spread checkpoints
+      - "-c"
+      - "max_wal_size=1GB" # Increased from 1GB
+      - "-c"
+      - "min_wal_size=256MB"
+
+      # Parallel Query
+      - "-c"
+      - "max_worker_processes=4" # Use 4 CPU cores
+      - "-c"
+      - "max_parallel_workers_per_gather=2" # Parallel queries
+      - "-c"
+      - "max_parallel_workers=4"
+      - "-c"
+      - "max_parallel_maintenance_workers=2" # Parallel CREATE INDEX
+
+      # Logging (for debugging)
+      - "-c"
+      - "log_min_duration_statement=1000" # Log queries > 1 second
+      - "-c"
+      - "log_line_prefix=%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h "
+      - "-c"
+      - "log_checkpoints=on"
+      - "-c"
+      - "log_connections=on"
+      - "-c"
+      - "log_disconnections=on"
+      - "-c"
+      - "log_lock_waits=on" # Log lock waits
+
+      # Autovacuum (Prevent bloat)
+      - "-c"
+      - "autovacuum=on"
+      - "-c"
+      - "autovacuum_max_workers=3"
+      - "-c"
+      - "autovacuum_naptime=10s" # Check every 10 seconds
+
+      # Extensions
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.track=all"
     networks:
-      - acme
-      # mc mb minio/acme.eu-west-1.stg.data.lake &&
-
-  # Spark
-  spark-builder:
-    # Configuration for Spark Builder
-    container_name: spark-builder
-    build:
-      context: .
-      dockerfile: ./docker/spark/Dockerfile
-    image: acme-spark
-
-  # Spark Master
-  spark-master:
-    image: acme-spark
-    container_name: spark-master
-    ports:
-      - "18080:8080"
-      - "7077:7077"
-      - "4040-4080:4040-4080"
-    environment:
-      SPARK_UI_PORT: 8080
-      SPARK_MODE: master
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-      MINIO_URL: "minio-storage:9000"
-    command: bin/spark-class org.apache.spark.deploy.master.Master
-    volumes:
-      - ./pyspark/apps:/opt/spark-apps
-      - ./pyspark/data:/opt/spark-data
-      - spark-checkpoints:/opt/spark-checkpoints
-    networks:
-      - acme
-
-  # Spark Workers
-  spark-worker-1:
-    # Configuration for Spark Worker 1
-    image: acme-spark
-    container_name: spark-worker-1
-    depends_on:
-      - spark-builder
-      - spark-master
-    ports:
-      - "28081:8081"
-      - "7001:7001"
-    environment:
-      SPARK_MODE: worker
-      SPARK_MASTER_URL: spark://spark-master:7077
-      SPARK_WORKER_CORES: 2
-      SPARK_WORKER_MEMORY: 2g
-      SPARK_DRIVER_MEMORY: 2g
-      SPARK_EXECUTOR_MEMORY: 2g
-      SPARK_WORKLOAD: worker
-      SPARK_LOCAL_IP: spark-worker-1
-    command:
-      bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
-    volumes:
-      - ./pyspark/apps:/opt/spark-apps
-      - ./pyspark/data:/opt/spark-data
-    networks:
-      - acme
-
-
-volumes:
-  minio_data:
-    # Configuration for MinIO data volume
-    driver: local
-  spark-checkpoints:
-    driver: local
-
+      - docs-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U docs -d docs_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 2G
+        reservations:
+          cpus: '2.0'
+          memory: 1G
 networks:
-  acme:
-    # Configuration for custom network
+  docs-network:
     driver: bridge
+volumes:
+  postgres_data:
