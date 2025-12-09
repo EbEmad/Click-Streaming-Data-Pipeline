@@ -99,10 +99,11 @@ services:
     networks:
       - docs-network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U docs -d docs_db" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 10s
+      retries: 20
+
     deploy:
       resources:
         limits:
@@ -115,8 +116,9 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: docs-kafka
+    restart: always
     ports:
-      - "9092:9092"
+      - "9094:9092" # Changed external port to 9094 to avoid conflict
       - "9093:9093"
     environment:
       KAFKA_NODE_ID: 1
@@ -132,19 +134,19 @@ services:
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
       KAFKA_HEAP_OPTS: "-Xms512m -Xmx512m"
-    
+
     networks:
       - docs-network
     healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      test: [ "CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092" ]
       interval: 10s
       timeout: 10s
       retries: 5
     deploy:
       resources:
         limits:
-          cpus: '1.0'      # 1 CPU core
-          memory: 1G       # 1 GB RAM
+          cpus: '1.0' # 1 CPU core
+          memory: 1G # 1 GB RAM
         reservations:
           cpus: '0.5'
           memory: 512M
@@ -170,6 +172,7 @@ services:
   debezium:
     image: debezium/connect:2.5
     container_name: docs-debezium
+    restart: always
     ports:
       - "8083:8083"
     environment:
@@ -187,24 +190,26 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    volumes:
+      - ./scripts/setup-debezium.sh:/scripts/setup-debezium.sh
+      - ./debezium/register-postgres.json:/debezium/register-postgres.json
+    entrypoint: [ "/scripts/setup-debezium.sh" ]
     networks:
       - docs-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8083/ || exit 1"]
+      test: [ "CMD-SHELL", "curl -f http://localhost:8083/ || exit 1" ]
       interval: 10s
-      timeout: 5s
+      timeout: 20s
       retries: 5
     deploy:
       resources:
         limits:
-          cpus: '0.5'      # 0.5 CPU core
-          memory: 768M     # 768 MB RAM
+          cpus: '0.5' # 0.5 CPU core
+          memory: 768M # 768 MB RAM
         reservations:
           cpus: '0.25'
           memory: 512M
-    
 
 networks:
   docs-network:
     driver: bridge
-

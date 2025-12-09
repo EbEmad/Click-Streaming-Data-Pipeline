@@ -7,7 +7,7 @@
     "database.user": "user",
     "database.password": "ebemad",
     "database.dbname": "docs_db",
-    "database.server.name": "docs",
+    "database.server.name": "postgres",
     "table.include.list": "documents.documents,signatures.signatures",
     "plugin.name": "pgoutput",
     "publication.autocreate.mode": "filtered",
