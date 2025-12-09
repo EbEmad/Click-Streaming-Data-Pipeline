@@ -167,7 +167,42 @@ services:
           cpus: '0.25'
           memory: 256M
 
-
+  debezium:
+    image: debezium/connect:2.5
+    container_name: docs-debezium
+    ports:
+      - "8083:8083"
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: debezium_configs
+      OFFSET_STORAGE_TOPIC: debezium_offsets
+      STATUS_STORAGE_TOPIC: debezium_statuses
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - docs-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8083/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'      # 0.5 CPU core
+          memory: 768M     # 768 MB RAM
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+    
 
 networks:
   docs-network:

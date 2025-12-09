@@ -1,0 +1,36 @@
+{
+  "name": "docs-postgres-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "user",
+    "database.password": "ebemad",
+    "database.dbname": "docs_db",
+    "database.server.name": "docs",
+    "table.include.list": "documents.documents,signatures.signatures",
+    "plugin.name": "pgoutput",
+    "publication.autocreate.mode": "filtered",
+    
+    "topic.prefix": "cdc",
+    
+    "tombstones.on.delete": "false",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter.schemas.enable": "false",
+    
+    "transforms": "route",
+    "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.route.regex": "([^.]+)\\.([^.]+)\\.([^.]+)",
+    "transforms.route.replacement": "$1.$3",
+    
+    "snapshot.mode": "initial",
+    "time.precision.mode": "connect",
+    "decimal.handling.mode": "double",
+    "include.schema.changes": "false",
+    "heartbeat.interval.ms": "10000",
+    "slot.name": "debezium_slot"
+  }
+}
