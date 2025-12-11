@@ -238,6 +238,26 @@ services:
           cpus: '0.5'
           memory: 256M
 
+  # APPLICATION SERVICES (ASYNC PYTHON)
+  document-service:
+    build: ./services/document
+    container_name: docs-document-service
+    restart: always
+    ports:
+      - "8005:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - docs-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'      # 0.5 CPU core (simulates t3.medium)
+          memory: 512M     # 512 MB RAM
+        reservations:
+          cpus: '0.25'
+          memory: 256M
 networks:
   docs-network:
     driver: bridge
