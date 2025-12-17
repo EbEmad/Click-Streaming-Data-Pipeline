@@ -240,11 +240,17 @@ services:
 
   # APPLICATION SERVICES (ASYNC PYTHON)
   document-service:
-    build: ./services/document
+    build:
+      context: .
+      dockerfile: services/document/Dockerfile
     container_name: docs-document-service
     restart: always
     ports:
       - "8005:8000"
+    environment:
+      - database_url=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    volumes:
+      - ./services/document/app/db:/app/db
     depends_on:
       postgres:
         condition: service_healthy
