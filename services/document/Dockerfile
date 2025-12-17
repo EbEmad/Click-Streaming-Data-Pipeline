@@ -10,6 +10,10 @@ RUN apt-get update && apt-get install -y \
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+COPY ../protos /protos
+COPY generate_protos.sh .
+RUN chmod +x generate_protos.sh
+RUN ./generate_protos.sh
 COPY /app .
 EXPOSE 8000
 
