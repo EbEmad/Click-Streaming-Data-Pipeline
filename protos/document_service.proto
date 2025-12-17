@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package document;
+
+// DocumentService handles document operations.
+service DocumentService {
+  // Updates the status of a document.
+  rpc UpdateDocumentStatus(UpdateDocumentStatusRequest) returns (DocumentResponse);
+
+  // Retrieves a document by ID.
+  rpc GetDocument(GetDocumentRequest) returns (DocumentResponse);
+
+  // Checks if a document exists.
+  rpc DocumentExists(DocumentExistsRequest) returns (DocumentExistsResponse);
+}
+
+// Request to update a document's status.
+message UpdateDocumentStatusRequest {
+  string document_id = 1;
+  string status = 2;
+}
+
+// Request to get a document by ID.
+message GetDocumentRequest {
+  string document_id = 1;
+}
+
+// Request to check if a document exists.
+message DocumentExistsRequest {
+  string document_id = 1;
+}
+
+// Response containing document details.
+message DocumentResponse {
+  string id = 1;
+  string title = 2;
+  string status = 3;
+  string created_by = 4;
+  string content_type = 5;
+  int64 content_size = 6;
+  string s3_key = 7;
+  string created_at = 8;
+  string updated_at = 9;
+  int32 version = 10;
+}
+
+// Response for document existence check.
+message DocumentExistsResponse {
+  bool exists = 1;
+  string status = 2;
+}
