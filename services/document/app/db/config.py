@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     database_url: str
 
     service_name: str = "document-service"
+    MAX_SEND_MESSAGE_LENGTH: int 
+    MAX_RECEIVE_MESSAGE_LENGTH: int 
 
     class Config:
         env_file = ".env"
