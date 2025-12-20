@@ -2,6 +2,7 @@ from db.schemes import DocumentCreate, DocumentResponse, DocumentUpdate
 from db.models import Document,DocumentStatus
 from db.database import get_db,engine,Base
 from db.config import get_settings
+from db.grpc_server import serve_grpc
 from fastapi import Depends, FastAPI, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -20,11 +21,18 @@ async def lifespan(app:FastAPI):
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    grpc_task = asyncio.create_task(serve_grpc())
     logger.info(f"{settings.service_name} started - HTTP: 8000")
     yield
-
+   
     logger.info(f"{settings.service_name} shutting down...")
+    grpc_task.cancel()
+    try:
+        await grpc_task
+    except asyncio.CancelledError:
+        pass
     await engine.dispose()
+
 app=FastAPI(title="Document Service",version="1.0.0",lifespan=lifespan)
 
 
@@ -66,3 +74,51 @@ async def create_document(document:DocumentCreate,db: AsyncSession = Depends(get
     await db.refresh(db_document)
     logger.info(f"Document created: {document_id}")
     return db_document
+
+@app.get("/documents", response_model=list[DocumentResponse])
+async def list_documents(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+    """List documents with pagination."""
+    result = await db.execute(
+        select(Document).offset(skip).limit(limit).order_by(Document.created_at.desc())
+    )
+    return result.scalars().all()
+    
+@app.get("/documents/{document_id}",response_model=DocumentResponse)
+async def get_document(
+        document_id:UUID,
+        request:Request,
+        db:AsyncSession=Depends(get_db)
+    ):
+
+
+    # Cache miss - get from database
+    result=await db.execute(select(Document).where(Document.id == document_id))
+    document = result.scalar_one_or_none()
+    if not document:
+        raise  HTTPException(status_code=404, detail="Document not found")
+    return document
+
+@app.patch("/documents/{document_id}", response_model=DocumentResponse)
+async def update_document(
+        document_id:UUID,
+        update:DocumentUpdate,
+        db:AsyncSession=Depends(get_db)
+    ):
+    """Update document with optimistic locking."""
+    result=await db.execute(select(Document).where(Document.id==document_id))
+    document=result.scalar_one_or_none()
+
+    if not document:
+        raise HTTPException(status_code=404,detail="Document not found")
+    
+    for field,value in update.model_dump(exclude_unset=True).items():
+        setattr(document,field,value)
+    
+    document.version+=1
+    await db.commit()
+    await db.refresh(document)
+    logger.info(f"Document updated: {document_id} v{document.version}")
+    return document
+
+
+    
