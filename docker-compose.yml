@@ -291,6 +291,55 @@ services:
           cpus: '0.25'
           memory: 256M
 
+  minio:
+    image: minio/minio:latest
+    container_name: docs-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    networks:
+      - docs-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+  
+  minio-client:
+    image: minio/mc:latest
+    container_name: docs-minio-client
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      mc mb myminio/documents --ignore-existing;
+      mc mb myminio/signatures --ignore-existing;
+      mc mb myminio/previews --ignore-existing;
+      mc anonymous set download myminio/previews;
+      tail -f /dev/null;
+      "
+    networks:
+      - docs-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 128M
+    
 networks:
   docs-network:
     driver: bridge
