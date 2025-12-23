@@ -3,6 +3,7 @@ from db.models import Document,DocumentStatus
 from db.database import get_db,engine,Base
 from db.config import get_settings
 from db.grpc_server import serve_grpc
+from db.storage import storage
 from fastapi import Depends, FastAPI, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -21,6 +22,8 @@ async def lifespan(app:FastAPI):
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    await storage.ensure_buckets()
     grpc_task = asyncio.create_task(serve_grpc())
     logger.info(f"{settings.service_name} started - HTTP: 8000")
     yield
@@ -57,7 +60,7 @@ async def create_document(document:DocumentCreate,db: AsyncSession = Depends(get
 
     document_id=uuid7()
     content_bytes = document.content.encode("utf-8")
-    s3_key=""
+    s3_key=await storage.upload_document(str(document_id), content_bytes)
 
     db_document=Document(
         id=document_id,

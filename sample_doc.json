@@ -1,0 +1,6 @@
+{
+  "title": "Test Doc",
+  "content": "Hello from curl!\nThis is a sample document body.",
+  "content_type": "text/plain",
+  "created_by": "you@example.com"
+}
