@@ -29,6 +29,7 @@ curl -X POST http://localhost:8005/documents \
   }' | jq '.'
 ```
 
+
 **Option B: Using a JSON File (S3 Upload)**
 ```bash
 curl -X POST http://localhost:8005/documents \
