@@ -339,6 +339,29 @@ services:
         limits:
           cpus: '0.1'
           memory: 128M
+
+  redis:
+    image: redis:7-alpine
+    container_name: docs-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy volatile-lru
+    networks:
+      - docs-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+        
     
 networks:
   docs-network:
