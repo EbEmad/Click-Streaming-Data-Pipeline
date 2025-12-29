@@ -4,6 +4,8 @@ from db.database import get_db,engine,Base
 from db.config import get_settings
 from db.grpc_server import serve_grpc
 from db.storage import storage
+from db.cache import cache
+from db.analytics import analytics
 from fastapi import Depends, FastAPI, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -14,6 +16,7 @@ import asyncio
 import logging
 
 settings = get_settings()
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager
@@ -22,8 +25,10 @@ async def lifespan(app:FastAPI):
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
+    
     await storage.ensure_buckets()
+    await cache.connect()
+    await analytics.connect()
     grpc_task = asyncio.create_task(serve_grpc())
     logger.info(f"{settings.service_name} started - HTTP: 8000")
     yield
@@ -35,6 +40,8 @@ async def lifespan(app:FastAPI):
     except asyncio.CancelledError:
         pass
     await engine.dispose()
+    await cache.disconnect()
+    await analytics.disconnect()
 
 app=FastAPI(title="Document Service",version="1.0.0",lifespan=lifespan)
 
@@ -74,6 +81,11 @@ async def create_document(document:DocumentCreate,db: AsyncSession = Depends(get
 
     db.add(db_document)
     await db.commit()
+    await cache.set(
+        f"document:{document_id}",
+        DocumentResponse.from_orm(db_document).dict(),
+        ttl=settings.redis_cache_ttl 
+    )
     await db.refresh(db_document)
     logger.info(f"Document created: {document_id}")
     return db_document
@@ -92,13 +104,34 @@ async def get_document(
         request:Request,
         db:AsyncSession=Depends(get_db)
     ):
-
+    """Get document with cache and analytics tracking."""
+    client_ip=request.client.host if request.ckient else "unknown"
+    # Check cache first
+    cached=await cache.get(f"document:{document_id}")
+    if cached:
+        logger.info(f"Cache hit:{document_id}")
+        await analytics.track_view(str(document_id),client_ip)
+        return DocumentResponse(**cached)
+    
 
     # Cache miss - get from database
+    logger.info(f"Cache miss: {document_id}")
     result=await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
+    
     if not document:
         raise  HTTPException(status_code=404, detail="Document not found")
+
+
+    await cache.incr(f"views:{document_id}")
+    await cache.pfadd(f"unique_views:{document_id}", client_ip)
+
+    # Cache the document
+    await cache.set(
+        f"document:{document_id}",
+        DocumentResponse.from_orm(document).dict(),
+        ttl=settings.redis_cache_ttl
+    )
     return document
 
 @app.patch("/documents/{document_id}", response_model=DocumentResponse)
@@ -120,8 +153,17 @@ async def update_document(
     document.version+=1
     await db.commit()
     await db.refresh(document)
+    await cache.delete(f"document:{document_id}")
     logger.info(f"Document updated: {document_id} v{document.version}")
     return document
 
 
+
+@app.get("/documents/{document_id}/stats")
+async def get_document_stats(document_id:UUID):
+    stats=await analytics.get_stats(str(document_id))
+    return {
+        "document_id":str(document_id),
+        **stats
+    }
     
