@@ -15,7 +15,7 @@ class DocumentAnalytics:
     async def connect(self):
         """Initialize Redis connection for analytics."""
         try:
-            self.redis=await await aioredis.from_url(
+            self.redis=await  aioredis.from_url(
                 settings.redis_url,
                 encoding="utf-8",
                 decode_responses=True,

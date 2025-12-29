@@ -105,7 +105,7 @@ async def get_document(
         db:AsyncSession=Depends(get_db)
     ):
     """Get document with cache and analytics tracking."""
-    client_ip=request.client.host if request.ckient else "unknown"
+    client_ip=request.client.host if request.client else "unknown"
     # Check cache first
     cached=await cache.get(f"document:{document_id}")
     if cached:
