@@ -5,7 +5,7 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
-    restart: always
+    restart: unless-stopped
     ports:
       - "5432:5432"
 
@@ -116,7 +116,7 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: docs-kafka
-    restart: always
+    restart: unless-stopped
     ports:
       - "9094:9092" # Changed external port to 9094 to avoid conflict
       - "9093:9093"
@@ -172,7 +172,7 @@ services:
   debezium:
     image: debezium/connect:2.5
     container_name: docs-debezium
-    restart: always
+    restart: unless-stopped
     ports:
       - "8083:8083"
     environment:
@@ -244,7 +244,7 @@ services:
       context: .
       dockerfile: services/document/Dockerfile
     container_name: docs-document-service
-    restart: always
+    restart: unless-stopped
     ports:
       - "8005:8000"
     environment:
@@ -266,11 +266,11 @@ services:
           memory: 256M
 
   signature-service:
-    build: 
+    build:
       context: .
       dockerfile: services/signature/Dockerfile
     container_name: docs-signature-service
-    restart: always
+    restart: unless-stopped
     ports:
       - "8002:8000"
     environment:
@@ -290,7 +290,43 @@ services:
         reservations:
           cpus: '0.25'
           memory: 256M
-
+  event-processor:
+    build:
+      context: ./services/event
+    container_name: docs-event-processor
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_CONSUMER_GROUP: event-processor-group
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ELASTICSEARCH_INDEX_DOCUMENTS: documents
+      CDC_DOCUMENTS_TOPIC: cdc.documents
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      SERVICE_NAME: event
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      debezium:
+        condition: service_healthy
+    networks:
+      - docs-network
+    volumes:
+      - ./services/event:/app
+    command: python -m app.main
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
   minio:
     image: minio/minio:latest
     container_name: docs-minio
@@ -304,7 +340,7 @@ services:
     networks:
       - docs-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -316,7 +352,7 @@ services:
         reservations:
           cpus: '0.25'
           memory: 256M
-  
+
   minio-client:
     image: minio/mc:latest
     container_name: docs-minio-client
@@ -349,7 +385,7 @@ services:
     networks:
       - docs-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -361,7 +397,7 @@ services:
         reservations:
           cpus: '0.25'
           memory: 256M
-        
+
   # ELASTICSEARCH
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
@@ -376,7 +412,7 @@ services:
     networks:
       - docs-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      test: [ "CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -388,7 +424,7 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
-    
+
 networks:
   docs-network:
     driver: bridge
