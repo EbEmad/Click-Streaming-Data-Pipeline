@@ -74,14 +74,16 @@ async def search(
     q:str=Query(..., min_length=1, description="Search query"),
     status:str | None = Query(None, description="Filter by status"),
     created_by: str | None = Query(None, description="Filter by creator"),
+    min_quality_score: float | None = Query(None, ge=0, le=100, description="Minimum quality score"),
+    exclude_pii: bool = Query(False, description="Exclude documents with PII"),
     from_: int=Query(0, ge=0, alias="from", description="Offset"),
     size:int=Query(10, ge=1, le=100, description="Number of results"),
     es: AsyncElasticsearch = Depends(get_es_client)
 ):
     """
-    Search documents with filters.
+    Search documents with filters including quality score.
     
-    Example: GET /search?q=contract&status=signed&from=0&size=10
+    Example: GET /search?q=contract&status=signed&min_quality_score=70&from=0&size=10
     """
 
     try:
@@ -101,6 +103,10 @@ async def search(
             filter_clauses.append({"term": {"status": status}})
         if created_by:
             filter_clauses.append({"term": {"created_by.keyword": created_by}})
+        if min_quality_score is not None:
+            filter_clauses.append({"range": {"quality_score": {"gte": min_quality_score}}})
+        if exclude_pii:
+            filter_clauses.append({"term": {"has_pii": False}})
         search_body={
             "query":{
                 "bool":{"must":must_clauses, "filter":filter_clauses}
