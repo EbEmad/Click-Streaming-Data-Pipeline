@@ -7,16 +7,27 @@
   <img src="https://img.shields.io/badge/CDC-Debezium-red.svg" alt="CDC">
 </p>
 
-##  Overview
+## Overview
 
-A microservices architecture showing event-driven document management with Change Data Capture (CDC), real-time updates, and full-text search capabilities. Built entirely with **async Python** for maximum throughput and minimal resource consumption.
+A high-performance document management system built on a **microservices architecture**, featuring **event-driven** patterns, **Change Data Capture (CDC)**, and real-time updates. This project demonstrates advanced backend concepts using **Async Python (FastAPI)**, **Kafka**, **Elasticsearch**, and **Redis**.
 
-##  Architecture
+## Key Features
+
+*   **Microservices Architecture**: Modular services for Documents, Signatures, Search, and Quality.
+*   **Event-Driven Design**: Asynchronous communication via Apache Kafka.
+*   **Change Data Capture (CDC)**: Real-time database monitoring using Debezium and PostgreSQL WAL.
+*   **Full-Text Search**: Scalable search engine powered by Elasticsearch.
+*   **High Performance**: Fully asynchronous I/O using FastAPI and `asyncpg`.
+*   **Real-time Analytics**: View counting and unique visitors using Redis HyperLogLog.
+*   **S3-Compatible Storage**: Document storage using MinIO.
+
+## Architecture
+
 <p align="center">
-  <img src="images/architecture.png" alt="Architecture Diagram" width="700"/>
+  <img src="images/architecture.png" alt="Architecture Diagram" width="800"/>
 </p>
 
-### Detailed Architecture Diagram
+### Detailed System Design
 
 ```mermaid
 graph TB
@@ -26,195 +37,200 @@ graph TB
         CLI["💻 CLI Tool<br/>curl/httpie"]
     end
 
-    subgraph "API Gateway Layer"
-        Kong["🦍 Kong Gateway<br/>Port 8000 (Proxy)<br/>Port 8001 (Admin)<br/>━━━━━━━━━━<br/>• Request Routing<br/>• CORS Handling<br/>• Load Balancing<br/>• WebSocket Proxy"]
+    subgraph "Gateway Layer"
+        Nginx["🌐 Reverse Proxy<br/>(Nginx/Kong)<br/>Port 8000"]
     end
 
     subgraph "Microservices Layer"
-        DocSvc["🐍 Document Service<br/>FastAPI (AsyncIO)<br/>Port 8000 (HTTP)<br/>Port 50051 (gRPC)<br/>━━━━━━━━━━<br/>• Create Documents<br/>• Update Status<br/>• Analytics Tracking<br/>• gRPC Server"]
+        DocSvc["🐍 Document Service<br/>FastAPI (AsyncIO)<br/>Port 8000 (HTTP)<br/>Port 50051 (gRPC)"]
         
-        SigSvc["🐍 Signature Service<br/>FastAPI (AsyncIO)<br/>Port 8000<br/>━━━━━━━━━━<br/>• Create Signatures<br/>• Validate Signers<br/>• gRPC Client<br/>• Update Doc Status"]
+        SigSvc["🐍 Signature Service<br/>FastAPI (AsyncIO)<br/>Port 8000"]
         
-        SearchSvc["🐍 Search Service<br/>FastAPI (AsyncIO)<br/>Port 8000<br/>━━━━━━━━━━<br/>• Full-text Search<br/>• Aggregations<br/>• Read-only"]
+        SearchSvc["🐍 Search Service<br/>FastAPI (AsyncIO)<br/>Port 8000"]
         
-        WSSvc["🐍 WebSocket Service<br/>FastAPI (AsyncIO)<br/>Port 8000<br/>━━━━━━━━━━<br/>• Real-time Updates<br/>• JWT Authentication<br/>• Connection Manager<br/>• Kafka Consumer"]
-    end
-
-    subgraph "Connection Pooling"
-        PgBouncer["🎱 PgBouncer<br/>Port 6432<br/>━━━━━━━━━━<br/>Transaction Pooling<br/>• Max 1000 clients<br/>• Pool size: 50<br/>• Reserve: 10<br/>• Auth: scram-sha-256"]
+        QualitySvc["🐍 Data Quality Service<br/>(Quix Streams)"]
     end
 
     subgraph "Data Persistence Layer"
-        PG[("🐘 PostgreSQL 15<br/>Port 5432<br/>━━━━━━━━━━<br/>• Documents Table<br/>• Signatures Table<br/>• REPLICA IDENTITY FULL<br/>• Logical Replication<br/>━━━━━━━━━━<br/>Config:<br/>• wal_level = logical<br/>• max_connections = 200")]
+        PG[("🐘 PostgreSQL 15<br/>Port 5432<br/>WAL Enabled")]
         
-        Redis[("🔴 Redis 7<br/>Port 6379<br/>━━━━━━━━━━<br/>• Document Cache (TTL)<br/>• Analytics Counters<br/>• HyperLogLog (unique views)<br/>• volatile-lru eviction<br/>• AOF persistence")]
+        Redis[("🔴 Redis 7<br/>Port 6379<br/>Cache & Analytics")]
         
-        MinIO[("📦 MinIO<br/>Port 9000 (API)<br/>Port 9001 (Console)<br/>━━━━━━━━━━<br/>S3-Compatible Storage<br/>• Document Content<br/>• Signature Images<br/>• Bucket: documents")]
+        MinIO[("📦 MinIO<br/>Port 9000<br/>S3 Storage")]
     end
 
-    subgraph "CDC Pipeline"
-        Debezium["🔄 Debezium Connect<br/>Port 8083<br/>━━━━━━━━━━<br/>PostgreSQL Connector<br/>• Reads WAL Stream<br/>• Captures Changes<br/>• Publishes to Kafka<br/>• pgoutput plugin"]
-        
-        Kafka["📨 Apache Kafka<br/>Port 9092<br/>━━━━━━━━━━<br/>Event Streaming<br/>Topics:<br/>• cdc.documents<br/>• cdc.signatures<br/>━━━━━━━━━━<br/>Single broker (dev)"]
-    end
-
-    subgraph "Event Processing Layer"
-        EventProc["⚙️ Event Processor<br/>Quix Streams<br/>━━━━━━━━━━<br/>Background Worker<br/>• Transform CDC events<br/>• Filter incomplete data<br/>• Batch to Elasticsearch<br/>• Idempotent indexing"]
+    subgraph "Event Backbone"
+        Kafka["📨 Apache Kafka<br/>Port 9092"]
+        Debezium["🔄 Debezium Connect<br/>Port 8083"]
     end
 
     subgraph "Search Engine"
-        ES[("🔍 Elasticsearch 8<br/>Port 9200<br/>━━━━━━━━━━<br/>Full-text Search<br/>Index: documents<br/>• Title (analyzed)<br/>• Status (keyword)<br/>• Aggregations")]
+        ES[("🔍 Elasticsearch 8<br/>Port 9200")]
     end
 
-    %% Client to Gateway (HTTP)
-    Browser -->|"HTTP Requests"| Kong
-    Mobile -->|"HTTP Requests"| Kong
-    CLI -->|"HTTP Requests"| Kong
+    %% Client Interactions
+    Browser --> Nginx
+    CLI --> Nginx
+    Nginx --> DocSvc
+    Nginx --> SigSvc
+    Nginx --> SearchSvc
 
-    %% Client to Gateway (WebSocket - Bidirectional)
-    Browser <-->|"WebSocket<br/>(persistent)"| Kong
-    Mobile <-->|"WebSocket<br/>(persistent)"| Kong
+    %% Service Interactions
+    DocSvc -->|"SQL"| PG
+    SigSvc -->|"SQL"| PG
+    DocSvc -->|"S3"| MinIO
+    DocSvc -->|"Cache"| Redis
 
-    %% Gateway to Services (HTTP)
-    Kong -->|"POST /documents<br/>GET /documents"| DocSvc
-    Kong -->|"POST /signatures"| SigSvc
-    Kong -->|"GET /search?q=..."| SearchSvc
-    
-    %% Gateway to WebSocket Service (Bidirectional)
-    Kong <-->|"WS /ws/{doc_id}<br/>(bidirectional)"| WSSvc
-
-    %% Services to Connection Pool
-    DocSvc -->|"SQL Queries<br/>(asyncpg)"| PgBouncer
-    SigSvc -->|"SQL Queries<br/>(asyncpg)"| PgBouncer
-    
-    %% PgBouncer to PostgreSQL
-    PgBouncer -->|"50 pooled<br/>connections"| PG
-
-    %% Services to Cache/Analytics
-    DocSvc -->|"Cache + Analytics<br/>(aioredis)"| Redis
-
-    %% Services to Storage
-    DocSvc -->|"PUT/GET<br/>(aioboto3)"| MinIO
-    SigSvc -->|"PUT<br/>(aioboto3)"| MinIO
-
-    %% gRPC Communication
-    SigSvc -.->|"gRPC Call<br/>UpdateDocumentStatus"| DocSvc
-
-    %% CDC Pipeline (bypasses PgBouncer)
-    PG -->|"WAL Stream<br/>(logical replication)"| Debezium
-    Debezium -->|"Publish CDC Events<br/>(JSON)"| Kafka
-
-    %% Event Consumers
-    Kafka -->|"Subscribe<br/>cdc.documents"| EventProc
-    Kafka -->|"Subscribe<br/>cdc.documents<br/>cdc.signatures"| WSSvc
-
-    %% Event Processing to Search
-    EventProc -->|"Bulk Index<br/>(async)"| ES
-
-    %% Search Service to Elasticsearch
-    SearchSvc -->|"Search Queries<br/>(async)"| ES
-
-    %% Styling
-    classDef clientStyle fill:#e1f5ff,stroke:#01579b,stroke-width:2px
-    classDef gatewayStyle fill:#fff3e0,stroke:#e65100,stroke-width:3px
-    classDef serviceStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef dataStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
-    classDef cdcStyle fill:#fff9c4,stroke:#f57f17,stroke-width:2px
-    classDef searchStyle fill:#fce4ec,stroke:#880e4f,stroke-width:2px
-
-    class Browser,Mobile,CLI clientStyle
-    class Kong gatewayStyle
-    class DocSvc,SigSvc,SearchSvc,WSSvc serviceStyle
-    class PG,Redis,MinIO,PgBouncer dataStyle
-    class Debezium,Kafka,EventProc cdcStyle
-    class ES searchStyle
+    %% Event Flow
+    PG -->|"WAL"| Debezium
+    Debezium -->|"CDC Events"| Kafka
+    Kafka -->|"Consume"| SearchSvc
+    Kafka -->|"Consume"| QualitySvc
+    QualitySvc -->|"Search Indexing"| ES
 ```
-## Testing with Curl
 
-You can test the flow (Document Creation -> Signature -> Status Update) using the following commands.
+## Prerequisites
 
-### 1. Create a Document
-**Service:** Document Service (Port 8005)
+Before starting, ensure you have the following installed:
 
-**Option A: Inline JSON**
+*   **Docker** and **Docker Compose**
+*   **cURL** and **jq** (for testing APIs)
+*   **Python 3.11+** (optional, for local development)
+
+## Getting Started
+
+### 1. Clone the Repository
 ```bash
+git clone https://github.com/EbEmad/event-driven-dms.git
+cd event-driven-dms
+```
+
+### 2. Environment Setup
+Create the `.env` file from the example template. The default values are sufficient for local development.
+
+```bash
+cp .env.example .env
+```
+
+### 3. Start Services
+Launch the entire stack using Docker Compose. This might take a few minutes on the first run as images are built.
+
+```bash
+docker-compose up -d --build
+```
+
+### 4. Verify Installation
+Check if all containers are running and healthy:
+
+```bash
+docker-compose ps
+```
+
+## Services Overview
+
+| Service | Port (Host) | Description |
+| :--- | :--- | :--- |
+| **Document Service** | `8005` | Core CRUD operations for documents. |
+| **Signature Service** | `8002` | Handles document signing via gRPC. |
+| **Search Service** | `8001` | Read-only search API (if exposed). |
+| **Kafka UI** | `8080` | Web interface to monitor Kafka topics and brokers. |
+| **MinIO Console** | `9001` | Object storage management (S3). |
+| **Debezium** | `8083` | CDC Connector API. |
+| **Elasticsearch** | `9200` | Search engine API. |
+
+## Comprehensive API Guide
+
+Follow these steps to exercise the full system capabilities using `curl`.
+
+### 1. Document Service
+
+**Create a Document**
+```bash
+# Returns the new document ID (save this!)
 curl -X POST http://localhost:8005/documents \
   -H "Content-Type: application/json" \
   -d '{
-    "title": "Sales Agreement Q4 2025",
-    "content": "This agreement outlines the terms...",
-    "created_by": "ebemad@company.com"
+    "title": "Service Level Agreement 2024",
+    "content": "This agreement defines the terms of service...",
+    "created_by": "admin@example.com"
   }' | jq '.'
 ```
 
-
-**Option B: Using a JSON File (S3 Upload)**
+**Get Document Details**
 ```bash
-curl -X POST http://localhost:8005/documents \
-  -H "Content-Type: application/json" \
-  -d @sample_doc.json | jq '.'
+# Replace <DOC_ID> with the ID from above
+curl http://localhost:8005/documents/<DOC_ID> | jq '.'
 ```
-*Response:* Note the `id` field from the response (e.g., `06946681-6080-71f1-8000-e0ba48255d59`).
 
-### 2. Sign the Document
-**Service:** Signature Service (Port 8002)
-**Trigger:** This will trigger a gRPC call to update the document status to `signed`.
+**Get Document Analytics**
+```bash
+curl http://localhost:8005/documents/<DOC_ID>/stats | jq '.'
+```
 
-Replace `YOUR_DOCUMENT_ID` with the ID from Step 1.
+### 2. Signature Service
+
+**Sign a Document**
+This triggers a gRPC call to the Document Service to update the status to "signed" and initiates an event chain.
 
 ```bash
 curl -X POST http://localhost:8002/signatures \
   -H "Content-Type: application/json" \
   -d '{
-    "document_id": "YOUR_DOCUMENT_ID",
-    "signer_email": "ebemad@client.com",
-    "signer_name": "Ebrahim Emad",
-    "signature_data": "base64encoded_signature_image_data_here",
-    "document_status":"pending"
+    "document_id": "<DOC_ID>",
+    "signer_email": "client@example.com",
+    "signer_name": "John Doe",
+    "signature_data": "base64_encoded_signature_string",
+    "document_status": "signed"
   }' | jq '.'
 ```
 
-### 3. Verify Document Status
-**Service:** Document Service (Port 8005)
+### 3. Search Service
 
-Check that the document status has been updated to `signed`.
+**Search by Keyword**
+The search service uses Elasticsearch to find documents. Note that indexing is asynchronous, so there might be a slight delay (ms) after creation.
 
 ```bash
-curl http://localhost:8005/documents/YOUR_DOCUMENT_ID | jq '.'
+# Search for "Agreement"
+curl "http://localhost:8005/search?q=Agreement" | jq '.'
 ```
 
-
-## Redis Cache & Analytics
-
-### API Endpoints (Recommended)
+**Advanced Filtering**
 ```bash
-# Get document statistics
-curl http://localhost:8005/documents/YOUR_DOCUMENT_ID/stats | jq '.'
-
-# Fetch document (triggers view tracking)
-curl http://localhost:8005/documents/YOUR_DOCUMENT_ID | jq '.'
+# Search for signed documents created by admin
+curl "http://localhost:8005/search?q=Agreement&status=signed&created_by=admin@example.com" | jq '.'
 ```
 
-### Direct Redis Inspection
+### 4. Data Quality & Analytics (Automated)
 
-**One-liner commands:**
+The **Data Quality Service** runs in the background. It consumes document creation events, validates the content (using an LLM provider if configured), and enriches the metadata.
+
+You can verify its output by checking the Kafka topics via **Kafka UI** at `http://localhost:8080` or by inspecting the enriched data in Elasticsearch:
+
 ```bash
-# List all cached documents
-docker exec -it docs-redis redis-cli KEYS "document:*"
-
-# Get cached document
-docker exec -it docs-redis redis-cli GET "document:YOUR_DOCUMENT_ID"
-
-# Get view count
-docker exec -it docs-redis redis-cli GET "views:YOUR_DOCUMENT_ID"
-
-# Get unique visitors
-docker exec -it docs-redis redis-cli PFCOUNT "unique_views:YOUR_DOCUMENT_ID"
+curl "http://localhost:9200/documents/_search?q=quality_score:>0" | jq '.'
 ```
 
-**Interactive mode:**
-```bash
-docker exec -it docs-redis redis-cli
-# Then: KEYS *, GET "key", TTL "key", EXIT
+## Redis Analytics
+
+The system uses Redis for high-speed, atomic capability counting.
+
+*   **View Statistics**: `GET views:{doc_id}`
+*   **Unique Visitors**: `PFCOUNT unique_views:{doc_id}`
+
+## Project Structure
+
+```
+├── services/               # Microservices source code
+│   ├── document/           # Document management service
+│   ├── signature/          # Digital signature service
+│   ├── search/             # Search service (FastAPI)
+│   ├── event/              # Event processor (Quix Streams)
+│   └── data-quality/       # Data validation service
+├── debezium/               # Debezium connector configurations
+├── scripts/                # Database and setup scripts
+└── docker-compose.yml      # Orchestration configuration
 ```
 
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
