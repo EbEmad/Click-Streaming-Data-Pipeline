@@ -299,7 +299,7 @@ services:
       KAFKA_CONSUMER_GROUP: event-processor-group
       ELASTICSEARCH_URL: http://elasticsearch:9200
       ELASTICSEARCH_INDEX_DOCUMENTS: documents
-      CDC_DOCUMENTS_TOPIC: cdc.documents
+      CDC_DOCUMENTS_TOPIC: quality.checks
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
       MINIO_ENDPOINT: minio:9000
@@ -333,23 +333,6 @@ services:
       context: ./services/data-quality
     container_name: docs-data-quality
     restart: unless-stopped
-    environment:
-      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
-      - MIN_QUALITY_SCORE=${MIN_QUALITY_SCORE:-50.0}
-      - BLOCK_LOW_QUALITY=${BLOCK_LOW_QUALITY:-false}
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - KAFKA_CONSUMER_GROUP=data-quality-group
-      - CDC_DOCUMENTS_TOPIC=cdc.documents
-      - QUALITY_CHECKS_TOPIC=quality.checks
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
-      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
-      - MINIO_SECURE=false
-      - MINIO_BUCKET_DOCUMENTS=documents
     depends_on:
       kafka:
         condition: service_healthy
