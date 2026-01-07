@@ -35,7 +35,10 @@ CREATE TABLE IF NOT EXISTS documents.documents (
             'viewed',
             'signed',
             'completed',
-            'cancelled'
+            'cancelled',
+            'approved',
+            'pending',
+            'archived'
         )
     )
 );
